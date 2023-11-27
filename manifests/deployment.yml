@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
         - name: akannanspringbootapp 
-          image: myacrrepo431.azurecr.io/akannanspringbootapp
+          image: 639000616788.dkr.ecr.us-east-2.amazonaws.com/micro-service-eks:latest
           ports:
           - containerPort: 80
