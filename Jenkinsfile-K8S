@@ -1,41 +1,49 @@
 pipeline {
-    agent any
-
-    environment {
-        registry = "211223789150.dkr.ecr.us-east-2.amazonaws.com/my-python-repo"
+   tools {
+        maven '3.9.5'
     }
-    
+    agent any
+    environment {
+        registry = "639000616788.dkr.ecr.us-east-2.amazonaws.com/micro-service-eks"
+    }
+   
     stages {
-        stage('Checkout') {
+        stage('Check-out Git') {
             steps {
-                checkout([$class: 'GitSCM', branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/akannan1087/myPythonDockerRepo']]])
+                checkout([$class: 'GitSCM', branches: [[name: '*/main']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'git', url: 'https://github.com/vigneshrajenrv/springboot-app-main.git']]])     
             }
         }
-    
-        stage ("Build image") {
-            steps {
-                script {
-                    docker.build registry
+        stage ('Build Jar') {
+          steps {
+            sh 'mvn clean install'           
+            }
+        }
+        // Building Docker images
+        stage('Building Image') {
+          steps{
+            script {
+                dockerImage = docker.build registry 
+            }
+          }
+        }
+        // Uploading Docker images into AWS ECR
+        stage('Pushing to ECR') {
+          steps{  
+            script {
+                sh 'aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 639000616788.dkr.ecr.us-east-2.amazonaws.com'
+                sh 'docker push 639000616788.dkr.ecr.us-east-2.amazonaws.com/micro-service-eks:latest'
+            }
+          }
+        }
+        stage('K8S Deploy') {
+        steps{   
+            script {
+                withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'k8s', namespace: '', restrictKubeConfigAccess: false, serverUrl: '') {
+                // some block
+                sh ('kubectl apply -f  eks-deploy-k8s.yaml')
                 }
             }
-        }
-        
-        stage ("docker push") {
-         steps {
-             script {
-                sh "aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 211223789150.dkr.ecr.us-east-2.amazonaws.com"
-                sh "docker push 211223789150.dkr.ecr.us-east-2.amazonaws.com/my-python-repo"
-                 
-             }
-           }   
-        }
-        
-        stage ("Kube Deploy") {
-            steps {
-                withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'K8S', namespace: '', serverUrl: '') {
-                 sh "kubectl apply -f eks-deploy-from-ecr.yaml"
-                }
-            }
+         }
         }
     }
 }
